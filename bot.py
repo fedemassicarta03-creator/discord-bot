@@ -1216,8 +1216,8 @@ async def slots(ctx, amount: int):
         winnings = amount * multiplier
         data[user_id]["points"] += winnings
         data[user_id]["earned"] += winnings
-      if reels[0] == "7️⃣":
-            data[user_id]["slot_jackpot"] = True
+     if reels[0] == "7️⃣":
+             data[user_id]["slot_jackpot"] = True
         result_text = f"🎉 JACKPOT! x{multiplier} — +{winnings} pts"
         color = discord.Color.gold()
     elif reels[0] == reels[1] or reels[1] == reels[2] or reels[0] == reels[2]:
