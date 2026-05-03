@@ -523,36 +523,53 @@ async def mychallenges(ctx):
 # ---------- ACHIEVEMENTS ----------
 @bot.command()
 async def achievements(ctx, member: discord.Member = None):
-    """See earned and locked achievements."""
     member = member or ctx.author
     user_id = str(member.id)
     ensure_user(user_id)
 
     earned = data[user_id]["achievements"]
 
-    embed = discord.Embed(title=f"🏅 {member.name}'s Achievements", color=discord.Color.gold())
-
-    earned_text = ""
-    locked_text = ""
+    earned_list = []
+    locked_list = []
 
     for key, ach in ACHIEVEMENTS.items():
         if key in earned:
-            earned_text += f"{ach['name']} — {ach['desc']}\n"
+            earned_list.append(f"{ach['name']} — {ach['desc']}")
         else:
-            locked_text += f"🔒 {ach['desc']}\n"
+            locked_list.append(f"🔒 {ach['desc']}")
 
-    embed.add_field(
-        name=f"✅ Earned ({len(earned)}/{len(ACHIEVEMENTS)})",
-        value=earned_text if earned_text else "None yet",
+    # Split into chunks of 10 to avoid field length limit
+    def chunks(lst, n):
+        for i in range(0, len(lst), n):
+            yield lst[i:i + n]
+
+    embed1 = discord.Embed(
+        title=f"🏅 {member.name}'s Achievements ({len(earned)}/{len(ACHIEVEMENTS)})",
+        color=discord.Color.gold()
+    )
+
+    earned_text = "\n".join(earned_list) if earned_list else "None yet — start claiming tasks!"
+    embed1.add_field(
+        name=f"✅ Earned ({len(earned)})",
+        value=earned_text[:1024],
         inline=False
     )
-    embed.add_field(
-        name="🔒 Locked",
-        value=locked_text if locked_text else "All unlocked!",
-        inline=False
-    )
-    await ctx.send(embed=embed)
 
+    await ctx.send(embed=embed1)
+
+    # Send locked in chunks
+    locked_chunks = list(chunks(locked_list, 10))
+    for i, chunk in enumerate(locked_chunks):
+        embed = discord.Embed(
+            title=f"🔒 Locked Achievements ({i+1}/{len(locked_chunks)})",
+            color=discord.Color.dark_gray()
+        )
+        embed.add_field(
+            name=f"Locked ({len(locked_list)} remaining)",
+            value="\n".join(chunk),
+            inline=False
+        )
+        await ctx.send(embed=embed)
 # ---------- PROFILE ----------
 @bot.command()
 async def profile(ctx, member: discord.Member = None):
