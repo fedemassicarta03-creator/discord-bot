@@ -51,7 +51,7 @@ SHOP = {
     "Send a letter":                    50,
     "Belohnung":                        25,
 }
-}
+
 
 # ---------- TASKS ----------
 TASKS = {
