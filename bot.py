@@ -951,9 +951,10 @@ async def buy(ctx, *, item: str):
 
     data[user_id]["total_spent"] = data[user_id].get("total_spent", 0) + price
     if item not in data[user_id].get("items_bought", []):
-    data[user_id].setdefault("items_bought", []).append(item)
+        data[user_id].setdefault("items_bought", []).append(item)
     if item == "Send a letter":
-    data[user_id]["bought_letter"] = True
+        data[user_id]["bought_letter"] = True
+
     save_data(data)
 
     embed = discord.Embed(title="✅ Purchase Successful!", description=f"You bought **{item}**!", color=discord.Color.green())
