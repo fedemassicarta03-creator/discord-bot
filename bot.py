@@ -892,4 +892,4 @@ async def help_command(ctx):
     await ctx.send(embed=embed2)
 
 # ---------- RUN ----------
-bot.run(os.environ.get["TOKEN"])
+bot.run(os.environ.get("TOKEN"))
