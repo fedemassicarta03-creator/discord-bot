@@ -13,7 +13,7 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
 # ---------- CONFIG ----------
-DATA_FILE = "data.json"
+DATA_FILE = "/app/data/data.json"
 ANNOUNCE_CHANNEL_ID = 1500210291890327742  # 🔧 Replace with your channel ID
 
 SHOP = {
@@ -892,4 +892,4 @@ async def help_command(ctx):
     await ctx.send(embed=embed2)
 
 # ---------- RUN ----------
-bot.run(os.environ.get("TOKEN"))
+bot.run(os.environ.get["TOKEN"])
