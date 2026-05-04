@@ -285,7 +285,6 @@ async def on_message(message):
 
 @tasks.loop(time=dtime(hour=8, minute=0))
 async def weekly_announcement():
-    await bot.wait_until_ready()
     now = datetime.now()
     if now.weekday() != 0:
         return
@@ -455,9 +454,6 @@ async def accept(ctx):
         await ctx.send(f"❌ You don't have enough points to accept this {c['bet']} pt bet.")
         return
 
-    data[user_id]["total_gambles"] = data[user_id].get("total_gambles", 0) + 1
-    data[user_id]["biggest_single_bet"] = max(data[user_id].get("biggest_single_bet", 0), amount)
-
     challenges[cid]["status"] = "accepted"
     challenges[cid]["started_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -592,7 +588,6 @@ async def profile(ctx, member: discord.Member = None):
     embed.add_field(name="🏅 Achievements", value=f"{len(earned_achievements)}/{len(ACHIEVEMENTS)}", inline=True)
     embed.add_field(name="⚔️ Challenges Won", value=f"{info.get('challenges_won', 0)}", inline=True)
     embed.add_field(name="✅ Claimed Today", value=", ".join(claimed_today) if claimed_today else "None", inline=False)
-    embed.add_field(name="⏳ Remaining Today", value=", ".join(not_claimed) if not_claimed else "All done! 🎉", inline=False)
     embed.set_thumbnail(url=member.display_avatar.url)
 
     await ctx.send(embed=embed)
@@ -966,7 +961,6 @@ async def buy(ctx, *, item: str):
     embed.set_footer(text="Check your inventory with !inventory")
     await ctx.send(embed=embed)
     await check_achievements(ctx, user_id)
-    await check_achievements(ctx, user_id)
 
 # ---------- USE ----------
 @bot.command()
@@ -1082,8 +1076,10 @@ async def doubleornothing(ctx, amount: int):
         await ctx.send(f"❌ You don't have enough points. You have **{data[user_id]['points']} pts**.")
         return
 
-    won = random.random() < 0.5
+data[user_id]["total_gambles"] = data[user_id].get("total_gambles", 0) + 1
+data[user_id]["biggest_single_bet"] = max(data[user_id].get("biggest_single_bet", 0), amount)
 
+won = random.random() < 0.5
     if won:
         data[user_id]["points"] += amount
         data[user_id]["earned"] += amount
@@ -1534,6 +1530,7 @@ async def stand(ctx):
     embed.add_field(name="💰 Balance", value=f"{data[user_id]['points']} pts", inline=True)
     save_data(data)
     await ctx.send(embed=embed)
+    await check_achievements(ctx, user_id)
 
 # ---------- HELP ----------
 @bot.command(name="help")
@@ -1590,11 +1587,17 @@ async def help_command(ctx):
     embed2.add_field(name="`!slots <amount>`", value="Spin the slot machine", inline=True)
     embed2.add_field(name="`!minesweeper <amount>`", value="Reveal tiles, avoid mines", inline=True)
     embed2.add_field(name="`!blackjack <amount>`", value="Beat the dealer to 21", inline=True)
+    embed2.add_field(name="`!flipaccept`", value="Accept a pending coin flip", inline=True)
+    embed2.add_field(name="`!flipdecline`", value="Decline a pending coin flip", inline=True)
+    embed2.add_field(name="`!reveal <1-9>`", value="Reveal a tile in minesweeper", inline=True)
+    embed2.add_field(name="`!cashout`", value="Cash out minesweeper winnings", inline=True)
+    embed2.add_field(name="`!hit`", value="Draw a card in blackjack", inline=True)
+    embed2.add_field(name="`!stand`", value="Hold your hand in blackjack", inline=True)
 
     embed2.add_field(name="━━━ 🔧 Other ━━━", value="\u200b", inline=False)
     embed2.add_field(name="`!ping`", value="Check bot latency", inline=True)
 
-    embed2.set_footer(text="data.json | Arguments in <> are required, [] are optional")
+    embed2.set_footer(text="Arguments in <> are required, [] are optional")
 
     await ctx.send(embed=embed1)
     await ctx.send(embed=embed2)
