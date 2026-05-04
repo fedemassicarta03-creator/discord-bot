@@ -1594,13 +1594,15 @@ async def help_command(ctx):
     embed2.add_field(name="`!hit`", value="Draw a card in blackjack", inline=True)
     embed2.add_field(name="`!stand`", value="Hold your hand in blackjack", inline=True)
 
-    embed2.add_field(name="━━━ 🔧 Other ━━━", value="\u200b", inline=False)
-    embed2.add_field(name="`!ping`", value="Check bot latency", inline=True)
+    embed3 = discord.Embed(title="📖 Bot Commands (3/3)", color=discord.Color.blurple())
 
-    embed2.set_footer(text="Arguments in <> are required, [] are optional")
+    embed3.add_field(name="━━━ 🔧 Other ━━━", value="\u200b", inline=False)
+    embed3.add_field(name="`!ping`", value="Check bot latency", inline=True)
+    embed3.set_footer(text="Arguments in <> are required, [] are optional")
 
     await ctx.send(embed=embed1)
     await ctx.send(embed=embed2)
+    await ctx.send(embed=embed3)
 
 # ---------- RUN ----------
 bot.run(os.environ.get("TOKEN"))
