@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands, tasks
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dtime
 from collections import Counter
 import random
 
@@ -282,11 +282,12 @@ async def on_message(message):
     await bot.process_commands(message)
 
 # ---------- WEEKLY ANNOUNCEMENT ----------
-@tasks.loop(hours=24)
+
+@tasks.loop(time=dtime(hour=8, minute=0))
 async def weekly_announcement():
     await bot.wait_until_ready()
     now = datetime.now()
-    if now.weekday() != 0 or now.hour != 8:
+    if now.weekday() != 0:
         return
 
     channel = bot.get_channel(ANNOUNCE_CHANNEL_ID)
@@ -773,20 +774,6 @@ async def tasks(ctx):
             value=task["description"],
             inline=False
         )
-    await ctx.send(embed=embed)
-
-# ---------- COOLDOWNS ----------
-@bot.command()
-async def cooldowns(ctx):
-    user_id = str(ctx.author.id)
-    ensure_user(user_id)
-    today = datetime.now().strftime("%Y-%m-%d")
-
-    embed = discord.Embed(title="⏳ Today's Task Status", color=discord.Color.orange())
-    for key, task in TASKS.items():
-        claimed = any(e["task"] == key and e["time"].startswith(today) for e in data[user_id]["history"])
-        status = "✅ Done" if claimed else "⬜ Available"
-        embed.add_field(name=f"`{key}` {task['name']}", value=status, inline=True)
     await ctx.send(embed=embed)
 
 # ---------- ALL-TIME LEADERBOARD ----------
@@ -1559,8 +1546,7 @@ async def help_command(ctx):
 
     embed1.add_field(name="━━━ 📋 Tasks ━━━", value="\u200b", inline=False)
     embed1.add_field(name="`!tasks`", value="List all available tasks", inline=True)
-    embed1.add_field(name="`!claim <A-J>`", value="Claim a completed task (once per day)", inline=True)
-    embed1.add_field(name="`!cooldowns`", value="See which tasks you've done today", inline=True)
+    embed1.add_field(name="`!claim <A-J> ...`", value="Claim one or more tasks", inline=True)
 
     embed1.add_field(name="━━━ 👤 Profile & Stats ━━━", value="\u200b", inline=False)
     embed1.add_field(name="`!profile [@user]`", value="View your or someone's profile", inline=True)
