@@ -1076,10 +1076,10 @@ async def doubleornothing(ctx, amount: int):
         await ctx.send(f"❌ You don't have enough points. You have **{data[user_id]['points']} pts**.")
         return
 
-data[user_id]["total_gambles"] = data[user_id].get("total_gambles", 0) + 1
-data[user_id]["biggest_single_bet"] = max(data[user_id].get("biggest_single_bet", 0), amount)
+        data[user_id]["total_gambles"] = data[user_id].get("total_gambles", 0) + 1
+        data[user_id]["biggest_single_bet"] = max(data[user_id].get("biggest_single_bet", 0), amount)
 
-won = random.random() < 0.5
+        won = random.random() < 0.5
     if won:
         data[user_id]["points"] += amount
         data[user_id]["earned"] += amount
