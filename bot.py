@@ -1536,14 +1536,14 @@ async def stand(ctx):
 @bot.command(name="help")
 async def help_command(ctx):
     embed1 = discord.Embed(
-        title="📖 Bot Commands (1/2)",
+        title="📖 Bot Commands (1/3)",
         description="Here's everything you can do:",
         color=discord.Color.blurple()
     )
 
     embed1.add_field(name="━━━ 📋 Tasks ━━━", value="\u200b", inline=False)
     embed1.add_field(name="`!tasks`", value="List all available tasks", inline=True)
-    embed1.add_field(name="`!claim <A-J> ...`", value="Claim one or more tasks", inline=True)
+    embed1.add_field(name="`!claim <A-J> ...`", value="Claim one or more tasks — no daily limit!", inline=True)
 
     embed1.add_field(name="━━━ 👤 Profile & Stats ━━━", value="\u200b", inline=False)
     embed1.add_field(name="`!profile [@user]`", value="View your or someone's profile", inline=True)
@@ -1558,13 +1558,13 @@ async def help_command(ctx):
     embed1.add_field(name="`!weekly`", value="Points earned in the last 7 days", inline=True)
     embed1.add_field(name="`!category <A-J>`", value="Leaderboard for a specific task", inline=True)
 
+    embed1.add_field(name="━━━ 🏅 Achievements ━━━", value="\u200b", inline=False)
+    embed1.add_field(name="`!achievements [@user]`", value="See earned and locked achievements", inline=True)
+
     embed2 = discord.Embed(
-        title="📖 Bot Commands (2/2)",
+        title="📖 Bot Commands (2/3)",
         color=discord.Color.blurple()
     )
-
-    embed2.add_field(name="━━━ 🏅 Achievements ━━━", value="\u200b", inline=False)
-    embed2.add_field(name="`!achievements [@user]`", value="See earned and locked achievements", inline=True)
 
     embed2.add_field(name="━━━ ⚔️ Challenges ━━━", value="\u200b", inline=False)
     embed2.add_field(name="`!challenge @user <A-J> [bet]`", value="Challenge someone to complete a task first", inline=True)
@@ -1584,17 +1584,22 @@ async def help_command(ctx):
     embed2.add_field(name="`!mysterybox`", value=f"Pay {MYSTERY_BOX_COST} pts for a random shop item", inline=True)
     embed2.add_field(name="`!doubleornothing <amount>`", value="50/50 to double or lose your bet", inline=True)
     embed2.add_field(name="`!coinflip @user <amount>`", value="Challenge someone to a coin flip", inline=True)
-    embed2.add_field(name="`!slots <amount>`", value="Spin the slot machine", inline=True)
-    embed2.add_field(name="`!minesweeper <amount>`", value="Reveal tiles, avoid mines", inline=True)
-    embed2.add_field(name="`!blackjack <amount>`", value="Beat the dealer to 21", inline=True)
     embed2.add_field(name="`!flipaccept`", value="Accept a pending coin flip", inline=True)
     embed2.add_field(name="`!flipdecline`", value="Decline a pending coin flip", inline=True)
-    embed2.add_field(name="`!reveal <1-9>`", value="Reveal a tile in minesweeper", inline=True)
-    embed2.add_field(name="`!cashout`", value="Cash out minesweeper winnings", inline=True)
-    embed2.add_field(name="`!hit`", value="Draw a card in blackjack", inline=True)
-    embed2.add_field(name="`!stand`", value="Hold your hand in blackjack", inline=True)
 
-    embed3 = discord.Embed(title="📖 Bot Commands (3/3)", color=discord.Color.blurple())
+    embed3 = discord.Embed(
+        title="📖 Bot Commands (3/3)",
+        color=discord.Color.blurple()
+    )
+
+    embed3.add_field(name="━━━ 🎰 Gambling (continued) ━━━", value="\u200b", inline=False)
+    embed3.add_field(name="`!slots <amount>`", value="Spin the slot machine", inline=True)
+    embed3.add_field(name="`!minesweeper <amount>`", value="Reveal tiles, avoid mines", inline=True)
+    embed3.add_field(name="`!reveal <1-9>`", value="Reveal a tile in minesweeper", inline=True)
+    embed3.add_field(name="`!cashout`", value="Cash out minesweeper winnings", inline=True)
+    embed3.add_field(name="`!blackjack <amount>`", value="Beat the dealer to 21", inline=True)
+    embed3.add_field(name="`!hit`", value="Draw a card in blackjack", inline=True)
+    embed3.add_field(name="`!stand`", value="Hold your hand in blackjack", inline=True)
 
     embed3.add_field(name="━━━ 🔧 Other ━━━", value="\u200b", inline=False)
     embed3.add_field(name="`!ping`", value="Check bot latency", inline=True)
