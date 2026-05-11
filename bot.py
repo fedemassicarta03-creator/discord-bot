@@ -259,13 +259,15 @@ def update_streak(user_id):
 
     data[user_id]["last_claim_date"] = today
 
-def get_streak_bonus(streak):
-    if streak >= 30:
-        return 3
-    elif streak >= 14:
-        return 2
-    elif streak >= 7:
-        return 1
+def get_streak_bonus(streak, previous_streak):
+    milestones = [7, 14, 30]
+    if streak in milestones and previous_streak == streak - 1:
+        if streak >= 30:
+            return 3
+        elif streak >= 14:
+            return 2
+        elif streak >= 7:
+            return 1
     return 0
 
 # ---------- BOT READY ----------
@@ -315,11 +317,11 @@ async def weekly_announcement():
     for i, (user_id, pts) in enumerate(sorted_users[:10], start=1):
         try:
             user = await bot.fetch_user(int(user_id))
-            name = user.mention
-        except discord.NotFound:
-            name = "Unknown"
+            name = user.display_name
+        except (discord.NotFound, discord.HTTPException):
+            name = f"User {user_id}"
         medal = medals[i - 1] if i <= 3 else f"{i}."
-        embed.add_field(name=f"{medal} {name}", value=f"{pts} pts", inline=False)
+        embed.add_field(name=f"{medal} {name}", value=f"{pts} pts", inline=False )
 
     await channel.send(embed=embed)
 
