@@ -251,13 +251,14 @@ def update_streak(user_id):
     last = data[user_id].get("last_claim_date")
 
     if last == today:
-        return
+        return False
     elif last == yesterday:
         data[user_id]["streak"] += 1
     else:
         data[user_id]["streak"] = 1
 
     data[user_id]["last_claim_date"] = today
+    return True
 
 def get_streak_bonus(streak, previous_streak):
     milestones = [7, 14, 30]
@@ -338,22 +339,21 @@ async def expire_challenges():
 @bot.command()
 async def claim(ctx, *tasks_input):
     user_id = str(ctx.author.id)
-
     if not tasks_input:
         await ctx.send("❌ Please provide at least one task. Example: `!claim A B C`")
         return
 
     ensure_user(user_id)
-    update_streak(user_id)
+    previous_streak = data[user_id].get("streak", 0)
+    first_claim_today = update_streak(user_id)
     streak = data[user_id]["streak"]
-    bonus = get_streak_bonus(streak)
+    bonus = get_streak_bonus(streak, previous_streak) if first_claim_today else 0
 
     results = []
     total_reward = 0
 
     for task in tasks_input:
         task = task.upper()
-
         if task not in TASKS:
             results.append(f"❌ `{task}` — invalid task")
             continue
@@ -368,7 +368,7 @@ async def claim(ctx, *tasks_input):
 
     save_data(data)
 
-    bonus_text = f" *(+{bonus} streak bonus per task!)*" if bonus > 0 else ""
+    bonus_text = f" *(+{bonus} streak milestone bonus!)*" if bonus > 0 else ""
     streak_text = f"🔥 Streak: **{streak} day{'s' if streak != 1 else ''}**"
 
     embed = discord.Embed(title="📋 Tasks Claimed", color=discord.Color.green())
