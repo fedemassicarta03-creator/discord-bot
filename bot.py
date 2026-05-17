@@ -43,7 +43,7 @@ SHOP = {
     "Outfit choice":                    15,
     "You decide my schedule tomorrow":  15,
     "Force someone to do a task":       10,
-    "30 min of YouTube":                15,
+    "30 min of YouTube/X":                15,
     "Block other person's action (YT Shorts, scrolling, X, etc.)": 30,
 
     # 🎁 Special
@@ -904,7 +904,7 @@ async def shop(ctx):
             "Outfit choice",
             "You decide my schedule tomorrow",
             "Force someone to do a task",
-            "30 min of YouTube",
+            "30 min of YouTube/X",
             "Block other person's action (YT Shorts, scrolling, X, etc.)",
         ],
         "🎁 Special": [
