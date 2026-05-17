@@ -18,41 +18,40 @@ ANNOUNCE_CHANNEL_ID = 1500210291890327742  # 🔧 Replace with your channel ID
 
 SHOP = {
     # 💬 Communication
-    "Compliment for 3 minutes":         8,
     "Romantic word":                     1,
     "Voice message":                     3,
+    "Request call at a specific time":   5,
+    "Movie/media recommendation":        1,
+    "Compliment for 3 minutes":          8,
     "Ask me anything":                   8,
-    "Personal playlist made for you":   20,
+    "Very close attention for 15 minutes": 10,
 
     # 📸 Media & Content
     "Send a photo now":                  3,
     "Good selfie":                       5,
-    "Movie/media recommendation":        1,
     "Draw something":                   20,
 
     # 🎮 Activities Together
     "Game to play together":             5,
-    "Workout together":                 16,
     "Study together session":            8,
     "Learn something together (30 min)":10,
+    "Language teacher for 1 hour":      15,
+    "Workout together":                 16,
 
     # 📅 Control & Decisions
-    "Request call at a specific time":   5,
     "Pick what I eat":                   5,
     "Outfit choice":                    15,
     "You decide my schedule tomorrow":  15,
     "Force someone to do a task":       10,
-    "30 min of YouTube/X":              15,
+    "30 min of YouTube":                15,
     "Block other person's action (YT Shorts, scrolling, X, etc.)": 30,
 
     # 🎁 Special
-    "Language teacher for 1 hour":      15,
-    "Very close attention for 15 minutes": 10,
     "Dance":                            15,
-    "Send a letter":                    50,
+    "Personal playlist made for you":   20,
     "Belohnung":                        25,
+    "Send a letter":                    50,
 }
-
 
 # ---------- TASKS ----------
 TASKS = {
@@ -880,42 +879,41 @@ async def shop(ctx):
 
     categories = {
         "💬 Communication": [
-            "Compliment for 3 minutes",
             "Romantic word",
             "Voice message",
+            "Request call at a specific time",
+            "Movie/media recommendation",
+            "Compliment for 3 minutes",
             "Ask me anything",
-            "Personal playlist made for you",
+            "Very close attention for 15 minutes",
         ],
         "📸 Media & Content": [
             "Send a photo now",
             "Good selfie",
-            "Movie/media recommendation",
             "Draw something",
         ],
         "🎮 Activities Together": [
             "Game to play together",
-            "Workout together",
             "Study together session",
             "Learn something together (30 min)",
+            "Language teacher for 1 hour",
+            "Workout together",
         ],
         "📅 Control & Decisions": [
-            "Request call at a specific time",
             "Pick what I eat",
             "Outfit choice",
             "You decide my schedule tomorrow",
             "Force someone to do a task",
-            "30 min of YouTube/X",
+            "30 min of YouTube",
             "Block other person's action (YT Shorts, scrolling, X, etc.)",
         ],
         "🎁 Special": [
-            "Language teacher for 1 hour",
-            "Very close attention for 15 minutes",
             "Dance",
-            "Send a letter",
+            "Personal playlist made for you",
             "Belohnung",
+            "Send a letter",
         ],
     }
-
     embed = discord.Embed(
         title="🛒 Shop",
         description=f"💰 Your balance: **{pts} pts**\n✅ = affordable  ❌ = need more points",
