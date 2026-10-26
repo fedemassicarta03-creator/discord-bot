@@ -26,6 +26,18 @@ BACKFILL_DAYS = 2        # how many days back you may log / correct
 STREAK_MILESTONES = {7: 3, 14: 5, 30: 10}   # streak day -> bonus points (paid once per streak)
 MYSTERY_BOX_COST = 10
 
+# Phase 1: quests, weekly goals, team challenges
+QUEST_REWARDS = {"easy": 2, "medium": 4, "hard": 6}          # bonus pts per tier
+QUEST_POOL = {                                               # (task letter, minutes)
+    "easy":   [("B", 15), ("F", 15), ("A", 20), ("C", 15), ("D", 15), ("E", 15), ("I", 15)],
+    "medium": [("F", 30), ("B", 45), ("A", 30), ("C", 30), ("D", 30), ("E", 30), ("I", 30)],
+    "hard":   [("A", 60), ("D", 60), ("C", 60), ("B", 90), ("F", 60), ("E", 60)],
+}
+GOAL_TARGET_REWARD = 5   # weekly goal reached
+GOAL_STRETCH_REWARD = 2  # extra for the stretch goal
+TEAM_REWARD = 3          # each, when a team challenge succeeds
+TEAM_DAYS = 7
+
 try:
     from zoneinfo import ZoneInfo
     TZ = ZoneInfo(TIMEZONE)
@@ -52,6 +64,8 @@ TASKS = {
     "I": {"name": "I - Cleaning",         "description": "Hours cleaning",                  "type": "hours", "rate": 1},
     "J": {"name": "J - Sleep",            "description": "No phone before going to sleep",  "type": "flag",  "reward": 1},
 }
+
+HOURS_TASKS = [k for k, t in TASKS.items() if t["type"] == "hours"]
 
 # ======================================================================
 #  SHOP  (single source of truth: edit prices / items only here)
@@ -271,6 +285,7 @@ def new_user():
         "biggest_bet": 0, "slot_jackpot": False, "won_legendary": False,
         "natural_blackjack": False, "minesweeper_pro": False,
         "bought_letter": False, "items_bought": [], "tz": None,
+        "quests": {}, "goals": {}, "team": None,
     }
 
 
@@ -494,6 +509,9 @@ def do_record(user_id, date_str, items, mode):
     if err:
         return err, None
     msgs = pay_milestones(data[user_id])
+    msgs += check_quest(data[user_id])
+    msgs += check_goals(data[user_id])
+    msgs += update_team(user_id)
     save_data()
     title = {"add": "✅ Record updated", "set": "✏️ Record corrected", "remove": "🧹 Removed"}[mode]
     return None, build_record_embed(user_id, info, title, msgs)
@@ -808,6 +826,11 @@ async def daily_job():
         now = now_local()
         channel = bot.get_channel(ANNOUNCE_CHANNEL_ID)
         await resolve_challenges(channel)
+        for uid in list(data):
+            team_msgs = update_team(uid)
+            if team_msgs and channel:
+                await channel.send("\n".join(team_msgs))
+        save_data()
         if not channel:
             return
         if now.weekday() == 0:  # Monday: last Mon-Sun
@@ -1174,6 +1197,333 @@ async def month_cmd(ctx, *args):
     await ctx.send(embed=build_month_embed(member.display_name, u, year, month))
 
 
+# ======================================================================
+#  PHASE 1: QUESTS, WEEKLY GOALS, TEAM CHALLENGES
+# ======================================================================
+def add_points(u, n):
+    u["points"] += n
+    u["earned"] += n
+
+
+def fmt_minutes(m):
+    return f"{m} min" if m < 60 else f"{m / 60:g} h"
+
+
+def quest_text(o):
+    return f"Log {fmt_minutes(o['minutes'])} of {TASKS[o['task']]['name']}"
+
+
+TIER_LABEL = {"easy": "🟢 Easy", "medium": "🟡 Medium", "hard": "🔴 Hard"}
+
+
+def get_quests(u):
+    """Today's three offers, generated once per local day and person."""
+    day = user_today_str(u)
+    quests = u["quests"]
+    cutoff = (user_today(u) - timedelta(days=7)).strftime(DATE_FMT)
+    for old in [d for d in quests if d < cutoff]:
+        del quests[old]
+    if day not in quests:
+        offers, used = [], set()
+        for tier in ("easy", "medium", "hard"):
+            options = [x for x in QUEST_POOL[tier] if x[0] not in used] or QUEST_POOL[tier]
+            task, minutes = random.choice(options)
+            used.add(task)
+            offers.append({"tier": tier, "task": task, "minutes": minutes, "pts": QUEST_REWARDS[tier]})
+        quests[day] = {"offers": offers, "chosen": None, "base": 0, "done": False}
+        save_data()
+    return day, quests[day]
+
+
+def quest_done_minutes(u, day, q):
+    o = q["offers"][q["chosen"]]
+    have = u["records"].get(day, {"tasks": {}})["tasks"].get(o["task"], 0)
+    return max(0.0, (have - q.get("base", 0)) * 60)
+
+
+def check_quest(u):
+    day = user_today_str(u)
+    q = u["quests"].get(day)
+    if not q or q["chosen"] is None or q["done"]:
+        return []
+    o = q["offers"][q["chosen"]]
+    if quest_done_minutes(u, day, q) >= o["minutes"] - 0.5:
+        q["done"] = True
+        add_points(u, o["pts"])
+        return [f"🎯 Quest complete: {quest_text(o)} → +{o['pts']} pts"]
+    return []
+
+
+def quest_embed(day, q):
+    e = discord.Embed(title=f"🎯 Daily quests — {day}", color=discord.Color.orange())
+    for i, o in enumerate(q["offers"], start=1):
+        mark = ""
+        if q["chosen"] == i - 1:
+            mark = " ✅ done" if q["done"] else " 👈 chosen"
+        e.add_field(name=f"{i}. {TIER_LABEL[o['tier']]} — +{o['pts']} pts{mark}", value=quest_text(o), inline=False)
+    if q["chosen"] is None:
+        e.set_footer(text="Pick one with !quest choose <1-3>. Hours logged after choosing count.")
+    else:
+        e.set_footer(text="Check your status with !quest progress")
+    return e
+
+
+@bot.command(name="quest", aliases=["quests"])
+async def quest_cmd(ctx, sub: str = None, number: str = None):
+    """!quest | !quest choose 1 | !quest progress"""
+    user_id = str(ctx.author.id)
+    u = ensure_user(user_id)
+    day, q = get_quests(u)
+    sub = sub.lower() if sub else None
+
+    if sub is None:
+        await ctx.send(embed=quest_embed(day, q))
+        return
+
+    if sub == "choose":
+        if number not in ("1", "2", "3"):
+            await ctx.send("❌ Use `!quest choose 1`, `2` or `3`.")
+            return
+        if q["chosen"] is not None:
+            await ctx.send(f"❌ You already chose quest {q['chosen'] + 1} today.")
+            return
+        idx = int(number) - 1
+        o = q["offers"][idx]
+        q["chosen"] = idx
+        q["base"] = u["records"].get(day, {"tasks": {}})["tasks"].get(o["task"], 0)
+        save_data()
+        await ctx.send(f"🎯 Quest {number} chosen: **{quest_text(o)}** (+{o['pts']} pts). "
+                       f"Log it with `!record {o['task']} {o['minutes']}m`; only time logged from now on counts.")
+        return
+
+    if sub == "progress":
+        if q["chosen"] is None:
+            await ctx.send("You haven't chosen a quest yet. See `!quest` and pick one with `!quest choose <1-3>`.")
+            return
+        o = q["offers"][q["chosen"]]
+        if q["done"]:
+            await ctx.send(f"✅ Quest done: **{quest_text(o)}** (+{o['pts']} pts). See you tomorrow!")
+            return
+        done = quest_done_minutes(u, day, q)
+        filled = int(min(1, done / o["minutes"]) * 10)
+        await ctx.send(f"🎯 **{quest_text(o)}** (+{o['pts']} pts)\n"
+                       f"{'█' * filled}{'░' * (10 - filled)} {done:.0f}/{o['minutes']} min")
+        return
+
+    await ctx.send("❌ Use `!quest`, `!quest choose <1-3>` or `!quest progress`.")
+
+
+# ---- weekly goals ------------------------------------------------------
+def week_info(d):
+    y, w, _ = d.isocalendar()
+    monday = d - timedelta(days=d.weekday())
+    return f"{y}-W{w:02d}", monday, monday + timedelta(days=6)
+
+
+def week_hours(u, task, monday, sunday):
+    a, b = monday.strftime(DATE_FMT), sunday.strftime(DATE_FMT)
+    return round(sum(r["tasks"].get(task, 0) for d, r in u["records"].items() if a <= d <= b), 2)
+
+
+def check_goals(u):
+    msgs, today = [], user_today(u)
+    for d in (today, today - timedelta(days=7)):   # previous week too (backfill)
+        key, mon, sun = week_info(d)
+        for task, g in u["goals"].get(key, {}).items():
+            have = week_hours(u, task, mon, sun)
+            name = TASKS[task]["name"]
+            if not g["paid_target"] and have >= g["target"] - 1e-9:
+                g["paid_target"] = True
+                add_points(u, GOAL_TARGET_REWARD)
+                msgs.append(f"📅 Weekly goal reached: {name} {g['target']:g} h → +{GOAL_TARGET_REWARD} pts")
+            if g.get("stretch") and not g["paid_stretch"] and have >= g["stretch"] - 1e-9:
+                g["paid_stretch"] = True
+                add_points(u, GOAL_STRETCH_REWARD)
+                msgs.append(f"🚀 Stretch goal reached: {name} {g['stretch']:g} h → +{GOAL_STRETCH_REWARD} pts")
+    return msgs
+
+
+@bot.command(name="goal", aliases=["goals"])
+async def goal_cmd(ctx, *args):
+    """!goal | !goal set A 8 [10] | !goal remove A"""
+    u = ensure_user(str(ctx.author.id))
+    today = user_today(u)
+    key, mon, sun = week_info(today)
+    sub = args[0].lower() if args else None
+
+    if sub is None:
+        goals = u["goals"].get(key, {})
+        if not goals:
+            await ctx.send("📅 No weekly goals yet. Example: `!goal set A 8 10` (8 h study, stretch 10 h).")
+            return
+        e = discord.Embed(title=f"📅 Weekly goals — {key} ({mon:%d.%m.}–{sun:%d.%m.})", color=discord.Color.blue())
+        for task, g in goals.items():
+            have = week_hours(u, task, mon, sun)
+            top = g.get("stretch") or g["target"]
+            filled = int(min(1, have / top) * 10)
+            lines = [f"{'█' * filled}{'░' * (10 - filled)} **{have:g} h**",
+                     f"Goal {g['target']:g} h: {'✅ +' + str(GOAL_TARGET_REWARD) + ' pts' if g['paid_target'] else 'open'}"]
+            if g.get("stretch"):
+                lines.append(f"Stretch {g['stretch']:g} h: {'✅ +' + str(GOAL_STRETCH_REWARD) + ' pts' if g['paid_stretch'] else 'open'}")
+            e.add_field(name=TASKS[task]["name"], value="\n".join(lines), inline=False)
+        e.set_footer(text=f"Rewards come on top of your normal points. Week ends {sun:%A}.")
+        await ctx.send(embed=e)
+        return
+
+    if sub == "set":
+        if len(args) < 3:
+            await ctx.send("❌ Use `!goal set <task> <hours> [stretch hours]`, e.g. `!goal set A 8 10`.")
+            return
+        task = args[1].upper()
+        if task not in HOURS_TASKS:
+            await ctx.send("❌ Goals work with hour tasks: " + ", ".join(HOURS_TASKS))
+            return
+        target = parse_hours(args[2])
+        stretch = parse_hours(args[3]) if len(args) > 3 else None
+        if not target or target <= 0 or target > MAX_TASK_HOURS * 7:
+            await ctx.send("❌ The goal must be a number of hours greater than 0.")
+            return
+        if len(args) > 3 and (stretch is None or stretch <= target):
+            await ctx.send("❌ The stretch goal must be higher than the goal.")
+            return
+        old = u["goals"].get(key, {}).get(task)
+        if old and (old["paid_target"] or old["paid_stretch"]):
+            await ctx.send("❌ You already got a reward for this goal this week, so it can't be changed.")
+            return
+        have = week_hours(u, task, mon, sun)
+        if have >= target:
+            await ctx.send(f"❌ You already logged {have:g} h of {TASKS[task]['name']} this week. Set a higher goal.")
+            return
+        u["goals"].setdefault(key, {})[task] = {"target": target, "stretch": stretch,
+                                                "paid_target": False, "paid_stretch": False}
+        for k in sorted(u["goals"])[:-6]:
+            del u["goals"][k]
+        save_data()
+        extra = f" (stretch {stretch:g} h)" if stretch else ""
+        await ctx.send(f"📅 Goal set: **{target:g} h** of {TASKS[task]['name']}{extra} this week. "
+                       f"Reward: +{GOAL_TARGET_REWARD} pts" + (f", +{GOAL_STRETCH_REWARD} more for the stretch." if stretch else "."))
+        return
+
+    if sub == "remove":
+        task = args[1].upper() if len(args) > 1 else ""
+        g = u["goals"].get(key, {}).get(task)
+        if not g:
+            await ctx.send("❌ No such goal this week. Use `!goal remove A`.")
+            return
+        if g["paid_target"] or g["paid_stretch"]:
+            await ctx.send("❌ You already got a reward for this goal, so it can't be removed.")
+            return
+        del u["goals"][key][task]
+        save_data()
+        await ctx.send(f"🗑️ Goal for {TASKS[task]['name']} removed.")
+        return
+
+    await ctx.send("❌ Use `!goal`, `!goal set <task> <hours> [stretch]` or `!goal remove <task>`.")
+
+
+# ---- team challenges ---------------------------------------------------
+def team_progress(uid):
+    """{person: (hours, first_day, last_day)} counted on each person's own local days."""
+    t = data[uid]["team"]
+    start = datetime.fromisoformat(t["start"])
+    out = {}
+    for who in (uid, t["partner"]):
+        d0 = start.astimezone(user_tz(data[who])).date()
+        d1 = d0 + timedelta(days=TEAM_DAYS - 1)
+        a, b = d0.strftime(DATE_FMT), d1.strftime(DATE_FMT)
+        hrs = sum(r["tasks"].get(t["task"], 0) for d, r in data[who]["records"].items() if a <= d <= b)
+        out[who] = (round(hrs, 2), d0, d1)
+    return out
+
+
+def update_team(uid):
+    """Completes or expires an active team challenge. Returns messages."""
+    t = data[uid].get("team")
+    if not t or t["status"] != "active" or t["partner"] not in data:
+        return []
+    pid = t["partner"]
+    prog = team_progress(uid)
+    total = sum(h for h, _, _ in prog.values())
+    name = TASKS[t["task"]]["name"]
+    if total >= t["target"] - 1e-9:
+        status = "completed"
+        msg = (f"🤝 Team challenge complete! {name}: {total:g}/{t['target']:g} h → "
+               f"<@{uid}> and <@{pid}> get +{TEAM_REWARD} pts each")
+    elif all(user_today(data[w]) > prog[w][2] for w in prog):
+        status = "failed"
+        msg = f"💔 Team challenge failed: {name} {total:g}/{t['target']:g} h. Try again!"
+    else:
+        return []
+    for who in (uid, pid):
+        if data[who].get("team"):
+            data[who]["team"]["status"] = status
+        if status == "completed":
+            add_points(data[who], TEAM_REWARD)
+    return [msg]
+
+
+@bot.command(name="teamchallenge", aliases=["tc"])
+async def teamchallenge(ctx, member: discord.Member, hours: str):
+    """!teamchallenge @user 10 -> reach 10 h of a random task together within 7 days"""
+    a, b = str(ctx.author.id), str(member.id)
+    ua, ub = ensure_user(a), ensure_user(b)
+    if member.id == ctx.author.id or member.bot:
+        await ctx.send("❌ Pick the other person for a team challenge.")
+        return
+    target = parse_hours(hours)
+    if not target or target <= 0 or target > 200:
+        await ctx.send("❌ The shared hour goal must be between 0 and 200, e.g. `!teamchallenge @user 10`.")
+        return
+    for uid in (a, b):
+        update_team(uid)
+    for uid, u in ((a, ua), (b, ub)):
+        if u.get("team") and u["team"]["status"] == "active":
+            who = "You have" if uid == a else f"{member.display_name} has"
+            await ctx.send(f"❌ {who} an active team challenge already (`!teamchallengeview`).")
+            return
+    task = random.choice(HOURS_TASKS)
+    start = datetime.now(timezone.utc).isoformat()
+    ua["team"] = {"partner": b, "task": task, "target": target, "start": start, "status": "active"}
+    ub["team"] = {"partner": a, "task": task, "target": target, "start": start, "status": "active"}
+    save_data()
+    embed = discord.Embed(
+        title="🤝 Team Challenge started!",
+        description=f"{ctx.author.mention} and {member.mention} work together: log **{target:g} h** of "
+                    f"**{TASKS[task]['name']}** combined within **{TEAM_DAYS} days**.",
+        color=discord.Color.teal())
+    embed.add_field(name="🎁 Reward", value=f"+{TEAM_REWARD} pts each when you make it", inline=True)
+    embed.set_footer(text="Check the status with !teamchallengeview")
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="teamchallengeview", aliases=["tcv"])
+async def teamchallengeview(ctx):
+    uid = str(ctx.author.id)
+    u = ensure_user(uid)
+    msgs = update_team(uid)
+    save_data()
+    t = u.get("team")
+    if not t:
+        await ctx.send("No team challenge yet. Start one with `!teamchallenge @user <hours>`.")
+        return
+    prog = team_progress(uid)
+    total = sum(h for h, _, _ in prog.values())
+    filled = int(min(1, total / t["target"]) * 10)
+    status = {"active": "🟢 active", "completed": "✅ completed", "failed": "❌ failed"}[t["status"]]
+    e = discord.Embed(title=f"🤝 Team challenge — {status}", color=discord.Color.teal())
+    e.add_field(name="Task", value=TASKS[t["task"]]["name"], inline=True)
+    e.add_field(name="Goal", value=f"{t['target']:g} h together", inline=True)
+    e.add_field(name="Progress", value=f"{'█' * filled}{'░' * (10 - filled)} **{total:g}/{t['target']:g} h**", inline=False)
+    for who, (hrs, d0, d1) in prog.items():
+        e.add_field(name=await get_name(who), value=f"{hrs:g} h", inline=True)
+    if t["status"] == "active":
+        left = max(0, (prog[uid][2] - user_today(u)).days + 1)
+        e.set_footer(text=f"{left} day(s) left for you")
+    await ctx.send(embed=e)
+    if msgs:
+        await ctx.send("\n".join(msgs))
+
+
 @bot.command(name="timezone", aliases=["tz"])
 async def timezone_cmd(ctx, *, name: str = None):
     """!timezone | !timezone Asia/Tokyo | !timezone Rome"""
@@ -1227,15 +1577,9 @@ async def achievements(ctx, member: discord.Member = None):
 # ======================================================================
 #  CHALLENGES  (who logs more hours of a task on the challenge day)
 # ======================================================================
-@bot.command()
-async def challenge(ctx, member: discord.Member, task: str, bet: int = 0):
-    """!challenge @user A 5 -> who logs more hours of A on the day it is accepted"""
+async def issue_challenge(ctx, member, task, bet, title="⚔️ Challenge Issued!"):
     if member.id == ctx.author.id:
         await ctx.send("❌ You can't challenge yourself.")
-        return
-    task = task.upper()
-    if task not in TASKS or TASKS[task]["type"] != "hours":
-        await ctx.send("❌ Challenges work with hour tasks: " + ", ".join(k for k, t in TASKS.items() if t["type"] == "hours"))
         return
     cid_a, cid_b = str(ctx.author.id), str(member.id)
     ensure_user(cid_a)
@@ -1257,13 +1601,29 @@ async def challenge(ctx, member: discord.Member, task: str, bet: int = 0):
 
     bet_text = f" for **{bet} pts**" if bet > 0 else ""
     embed = discord.Embed(
-        title="⚔️ Challenge Issued!",
+        title=title,
         description=f"{ctx.author.mention} challenged {member.mention}: who logs more hours of "
                     f"**{TASKS[task]['name']}** on the day it's accepted{bet_text}?",
         color=discord.Color.red())
     embed.set_footer(text=f"{member.display_name}, use !accept or !decline (valid 24h)")
     await ctx.send(embed=embed)
     await check_achievements(ctx, cid_a)
+
+
+@bot.command()
+async def challenge(ctx, member: discord.Member, task: str, bet: int = 0):
+    """!challenge @user A 5 -> who logs more hours of A on the day it is accepted"""
+    task = task.upper()
+    if task not in HOURS_TASKS:
+        await ctx.send("❌ Challenges work with hour tasks: " + ", ".join(HOURS_TASKS))
+        return
+    await issue_challenge(ctx, member, task, bet)
+
+
+@bot.command(name="randomchallenge", aliases=["rc"])
+async def randomchallenge(ctx, member: discord.Member, bet: int = 0):
+    """!randomchallenge @user 5 -> the bot picks the hour task"""
+    await issue_challenge(ctx, member, random.choice(HOURS_TASKS), bet, title="🎲 Random Challenge!")
 
 
 def _pending_for(user_id):
@@ -1910,6 +2270,17 @@ HELP_SECTIONS = [
         ("`!accept`", "Accept the latest challenge"),
         ("`!decline`", "Decline it"),
         ("`!mychallenges`", "Your active challenges"),
+        ("`!randomchallenge @user [bet]`", "Duel on a random hour task"),
+        ("`!teamchallenge @user <hours>`", "Co-op: reach the hours together in 7 days"),
+        ("`!teamchallengeview`", "Team challenge status"),
+    ]),
+    ("🎯 Quests & Goals", [
+        ("`!quest`", "Today's 3 quests (easy / medium / hard)"),
+        ("`!quest choose <1-3>`", "Pick a quest (counts hours logged after)"),
+        ("`!quest progress`", "Status of your quest"),
+        ("`!goal`", "Your weekly goals"),
+        ("`!goal set A 8 [10]`", "Weekly goal + optional stretch"),
+        ("`!goal remove A`", "Remove a goal"),
     ]),
     ("🛒 Shop", [
         ("`!shop`", "Browse the shop"),
